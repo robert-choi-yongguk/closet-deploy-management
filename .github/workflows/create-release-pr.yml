@@ -21,10 +21,23 @@ jobs:
             echo "repos=[]" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
-          REPOS_JSON=$(find pending -mindepth 2 -maxdepth 2 -type d -print0 | xargs -0 -I {} bash -c '[[ -f {}/history.log && -s {}/history.log ]] && echo "{}"' | sed 's/pending\///' | awk -F/ 'BEGIN{ORS=","}{print "{\"owner\":\""$1"\", \"repo\":\""$2"\"}"}' | sed 's/,$/\n/' | awk 'BEGIN{printf "["}{print $0}END{print "]"}')
 
-          if [ -z "$REPOS_JSON" ] || [ "$REPOS_JSON" == "[]" ]; then
+          REPOS_JSON="["
+          FIRST=true
+          for dir in $(find pending -mindepth 2 -maxdepth 2 -type d); do
+            if [[ -f "$dir/history.log" && -s "$dir/history.log" ]]; then
+              if [ "$FIRST" = "false" ]; then
+                REPOS_JSON="$REPOS_JSON,"
+              fi
+              owner=$(echo "$dir" | cut -d'/' -f2)
+              repo=$(echo "$dir" | cut -d'/' -f3)
+              REPOS_JSON="$REPOS_JSON{\"owner\":\"$owner\",\"repo\":\"$repo\"}"
+              FIRST=false
+            fi
+          done
+          REPOS_JSON="$REPOS_JSON]"
+
+          if [ "$REPOS_JSON" == "[]" ]; then
             echo "릴리즈할 내용이 있는 로그 파일이 없습니다."
             echo "repos=[]" >> $GITHUB_OUTPUT
           else
