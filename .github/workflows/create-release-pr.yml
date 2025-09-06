@@ -91,6 +91,9 @@ jobs:
 
           PR_TITLE="$RELEASE_DATE Release"
 
+          echo "'Deployment' 라벨 존재 여부 확인 및 생성..."
+          gh label list --repo $REPO_FULL_NAME | grep -q "Deployment" || gh label create "Deployment" --repo $REPO_FULL_NAME --description "Production Deployment" --color "#34d058"
+
           if ! git ls-remote --exit-code --heads "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL_NAME}.git" release >/dev/null; then
             echo "::warning::'release' 브랜치가 '${REPO_FULL_NAME}' 레포지토리에 존재하지 않아 PR 생성을 건너뜁니다."
             exit 0
