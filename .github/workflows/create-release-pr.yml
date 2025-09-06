@@ -62,7 +62,7 @@ jobs:
       - name: 릴리즈 노트 생성
         id: generate_release_note
         run: |
-          LOG_FILE="pending/${{ matrix.repo_info.owner }}/${{ matrix.repo_info.repo }}/history.log"
+          LOG_FILE="pending/${{ matrix.repo_info.repo }}/history.log"
           
           RELEASE_NOTE_BODY="### 🚀 릴리즈 노트\n\n"
           while IFS=, read -r pr_number pr_author; do
