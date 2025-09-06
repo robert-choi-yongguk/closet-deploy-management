@@ -16,30 +16,21 @@ jobs:
       - name: 'pending' 디렉토리에서 로그 파일 스캔 및 매트릭스 생성
         id: set-matrix
         run: |
-          cd pending || { echo "pending 디렉토리가 없습니다."; echo "repos=[]" >> $GITHUB_OUTPUT; exit 0; }
-
-          repos_json="[]"
-          repo_list=()
-
-          for owner_dir in */ ; do
-              owner=${owner_dir%/}
-              cd "$owner" || continue
-              for repo_dir in */ ; do
-                  repo=${repo_dir%/}
-                  log_file="$repo/history.log"
-                  if [ -f "$log_file" ] && [ -s "$log_file" ]; then
-                      repo_list+=("{\"owner\":\"$owner\", \"repo\":\"$repo\"}")
-                  fi
-              done
-              cd ..
-          done
-
-          if [ ${#repo_list[@]} -gt 0 ]; then
-              repos_json=$(IFS=,; echo "[${repo_list[*]}]")
+          if [ ! -d "pending" ]; then
+            echo "pending 디렉토리가 없습니다."
+            echo "repos=[]" >> $GITHUB_OUTPUT
+            exit 0
           fi
+          
+          REPOS_JSON=$(find pending -mindepth 2 -maxdepth 2 -type d -print0 | xargs -0 -I {} bash -c '[[ -f {}/history.log && -s {}/history.log ]] && echo "{}"' | sed 's/pending\///' | awk -F/ 'BEGIN{ORS=","}{print "{\"owner\":\""$1"\", \"repo\":\""$2"\"}"}' | sed 's/,$/\n/' | awk 'BEGIN{printf "["}{print $0}END{print "]"}')
 
-          echo "발견된 레포지토리: $repos_json"
-          echo "repos=$repos_json" >> $GITHUB_OUTPUT
+          if [ -z "$REPOS_JSON" ] || [ "$REPOS_JSON" == "[]" ]; then
+            echo "릴리즈할 내용이 있는 로그 파일이 없습니다."
+            echo "repos=[]" >> $GITHUB_OUTPUT
+          else
+            echo "발견된 레포지토리: $REPOS_JSON"
+            echo "repos=$REPOS_JSON" >> $GITHUB_OUTPUT
+          fi
 
 
   create-release-prs:
