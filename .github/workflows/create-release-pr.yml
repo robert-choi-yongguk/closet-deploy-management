@@ -1,4 +1,4 @@
-name: 2. 통합 배포 PR 수동 생성 (중앙 관리)
+name: 통합 배포 PR 수동 생성 (중앙 관리)
 
 on:
   workflow_dispatch:
