@@ -1,0 +1,49 @@
+name: 1. Release 브랜치 Merge 이력 기록
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - release
+
+jobs:
+  record-history:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    concurrency: release-log-lock
+
+    steps:
+      - name: 이력 관리 레포지토리 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: robert-choi-yongguk/closet-deploy-management
+          token: ${{ secrets.GH_RELEASE_PR_PAT }}
+          path: closet-deploy-management
+
+      - name: 로그 파일에 PR 정보 추가
+        run: |
+          LOG_DIR="closet-deploy-management/pending/${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          LOG_FILE="$LOG_DIR/history.log"
+          
+          mkdir -p $LOG_DIR
+          
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          PR_AUTHOR=${{ github.event.pull_request.user.login }}
+          
+          echo "$PR_NUMBER,@$PR_AUTHOR" >> $LOG_FILE
+          
+          echo "로그가 추가되었습니다: $LOG_FILE"
+          cat $LOG_FILE
+
+      - name: 변경사항 커밋 및 푸시
+        run: |
+          cd closet-deploy-management
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          if git diff-index --quiet HEAD; then
+            echo "변경 사항이 없어 커밋하지 않습니다."
+          else
+            git commit -m "chore: release 이력 기록 (${{ github.repository }})"
+            git push
+          fi

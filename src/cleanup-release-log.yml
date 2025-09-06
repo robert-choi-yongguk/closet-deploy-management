@@ -1,0 +1,52 @@
+name: 배포 완료 후 이력 정리
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  cleanup-log:
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'release'
+    runs-on: ubuntu-latest
+    concurrency: cleanup-log-lock
+
+    steps:
+      - name: 이력 관리 레포지토리 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: robert-choi-yongguk/closet-deploy-management
+          token: ${{ secrets.GH_RELEASE_PR_PAT }}
+          path: history-repo
+
+      - name: 로그 파일 아카이빙 (이름 변경 및 이동)
+        run: |
+          PENDING_LOG_FILE="history-repo/pending/${{ github.repository_owner }}/${{ github.event.repository.name }}/history.log"
+
+          if [ -f "$PENDING_LOG_FILE" ]; then
+            PROCESSED_DIR="history-repo/processed"
+            TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+            ARCHIVE_LOG_FILE="$PROCESSED_DIR/${TIMESTAMP}_${{ github.repository_owner }}_${{ github.event.repository.name }}.log"
+            
+            mkdir -p $PROCESSED_DIR
+            
+            mv "$PENDING_LOG_FILE" "$ARCHIVE_LOG_FILE"
+            
+            echo "로그 파일이 아카이브되었습니다: $ARCHIVE_LOG_FILE"
+          else
+            echo "아카이브할 로그 파일이 없습니다: $PENDING_LOG_FILE"
+          fi
+
+      - name: 변경사항 커밋 및 푸시
+        run: |
+          cd history-repo
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          if git diff-index --quiet HEAD; then
+            echo "변경 사항이 없어 커밋하지 않습니다."
+          else
+            git commit -m "chore: release 로그 아카이브 (${{ github.repository }})"
+            git push
+          fi
