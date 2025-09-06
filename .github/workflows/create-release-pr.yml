@@ -1,0 +1,88 @@
+name: 2. 통합 배포 PR 수동 생성 (중앙 관리)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  find-repos-with-logs:
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.set-matrix.outputs.repos }}
+
+    steps:
+      - name: 현재 레포지토리(이력 관리용) 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 'pending' 디렉토리에서 로그 파일 스캔 및 매트릭스 생성
+        id: set-matrix
+        run: |
+          cd pending || { echo "pending 디렉토리가 없습니다."; echo "repos=[]" >> $GITHUB_OUTPUT; exit 0; }
+
+          repos_json="[]"
+          repo_list=()
+
+          for owner_dir in */ ; do
+              owner=${owner_dir%/}
+              cd "$owner" || continue
+              for repo_dir in */ ; do
+                  repo=${repo_dir%/}
+                  log_file="$repo/history.log"
+                  if [ -f "$log_file" ] && [ -s "$log_file" ]; then
+                      repo_list+=("{\"owner\":\"$owner\", \"repo\":\"$repo\"}")
+                  fi
+              done
+              cd ..
+          done
+
+          if [ ${#repo_list[@]} -gt 0 ]; then
+              repos_json=$(IFS=,; echo "[${repo_list[*]}]")
+          fi
+
+          echo "발견된 레포지토리: $repos_json"
+          echo "repos=$repos_json" >> $GITHUB_OUTPUT
+
+
+  create-release-prs:
+    needs: find-repos-with-logs
+    if: needs.find-repos-with-logs.outputs.repos != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repo_info: ${{ fromJson(needs.find-repos-with-logs.outputs.repos) }}
+      fail-fast: false
+
+    steps:
+      - name: 현재 레포지토리(이력 관리용) 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 릴리즈 노트 생성
+        id: generate_release_note
+        run: |
+          LOG_FILE="pending/${{ matrix.repo_info.owner }}/${{ matrix.repo_info.repo }}/history.log"
+          
+          RELEASE_NOTE_BODY="### 🚀 릴리즈 노트\n\n"
+          while IFS=, read -r pr_number pr_author; do
+            RELEASE_NOTE_BODY="${RELEASE_NOTE_BODY}- #${pr_number} by ${pr_author}\n"
+          done < "$LOG_FILE"
+          
+          echo "note<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$RELEASE_NOTE_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 대상 레포지토리에 배포 PR 생성
+        env:
+          GH_TOKEN: ${{ secrets.GH_RELEASE_PR_PAT }}
+          RELEASE_DATE: $(date +'%Y-%m-%d')
+          REPO_FULL_NAME: ${{ matrix.repo_info.owner }}/${{ matrix.repo_info.repo }}
+        run: |
+          if ! git ls-remote --exit-code --heads "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL_NAME}.git" release >/dev/null; then
+            echo "::warning::'release' 브랜치가 '${REPO_FULL_NAME}' 레포지토리에 존재하지 않아 PR 생성을 건너뜁니다."
+            exit 0
+          fi
+
+          gh pr create \
+            --repo $REPO_FULL_NAME \
+            --base main \
+            --head release \
+            --title "🚀 Production Release - $RELEASE_DATE" \
+            --body "${{ steps.generate_release_note.outputs.note }}"

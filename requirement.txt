@@ -1,0 +1,61 @@
+# Gemini CLI를 위한 GitHub Actions 워크플로우 요구사항 (최종 수정본)
+
+## I. 전체 구성
+
+- **운영 레포지토리 (N개):** 실제 서비스 코드가 운영되는 레포지토리.
+  - 필요한 워크플로우: `record-release-history.yml`, `cleanup-release-log.yml`
+- **이력 관리 레포지토리 (1개):** 모든 릴리즈 이력을 중앙에서 관리하는 레포지토리.
+  - 대상 레포지토리: `robert-choi-yongguk/closet-deploy-management`
+  - 필요한 워크플로우: `create-release-pr.yml`
+
+## II. 인증 및 권한 설정
+
+- **Personal Access Token (PAT):** 워크플로우가 다른 레포지토리에 접근하기 위해 사용하는 토큰.
+  - **시크릿 이름:** `GH_RELEASE_PR_PAT` (모든 레포지토리에 동일하게 설정)
+  - **토큰 종류:** Fine-grained Personal Access Token 사용을 권장.
+  - **필수 권한:**
+    - **이력 관리 레포지토리 (`closet-deploy-management`)에 대한 권한:**
+      - `Contents`: **Read and write**
+    - **모든 운영 레포지토리에 대한 권한:**
+      - `Pull requests`: **Read and write**
+      - `Contents`: **Read-only**
+
+## III. 로그 파일 구조
+
+- **대기중인 로그:**
+  - 경로: `pending/운영레포소유자/운영레포이름/history.log`
+  - 내용: `PR번호,@PR작성자핸들` (예: `123,@username`)
+- **아카이빙된 로그:**
+  - 배포 완료 후 `processed` 디렉토리로 이동하며, 파일 이름 변경
+  - 경로: `processed/YYYYMMDD-HHMMSS_운영레포소유자_운영레포이름.log`
+
+---
+
+## IV. 워크플로우 상세 명세
+
+### 1. `record-release-history.yml` (운영 레포지토리용)
+- **목표:** `release` 브랜치에 PR이 머지될 때마다, 이력 관리 레포지토리에 로그를 추가.
+- **트리거:** `release` 브랜치로 향하는 PR이 `closed` 되고 `merged` 되었을 때.
+- **주요 로직:**
+  1. 이력 관리 레포지토리를 체크아웃.
+  2. `pending/소유자/레포/history.log` 파일에 `PR번호,@작성자핸들` 형식으로 한 줄 추가.
+  3. 변경 사항을 커밋하고 이력 관리 레포지토리에 푸시.
+
+### 2. `create-release-pr.yml` (이력 관리 레포지토리용)
+- **목표:** 수동 실행 시, 릴리즈가 필요한 모든 운영 레포지토리에 배포 PR을 자동으로 생성.
+- **트리거:** 수동 실행 (`workflow_dispatch`).
+- **주요 로직:**
+  1. **(Job 1) 레포지토리 스캔:** `pending` 디렉토리를 스캔하여 비어있지 않은 로그 파일(`history.log`)을 가진 레포지토리 목록을 동적으로 생성.
+  2. **(Job 2) PR 생성 (Matrix):**
+     - 스캔된 각 레포지토리에 대해 병렬로 작업 실행.
+     - 해당 레포지토리의 로그 파일을 읽어 릴리즈 노트 본문 생성.
+     - GitHub CLI (`gh`)를 사용하여 대상 **운영 레포지토리**에 `release` -> `main`으로 향하는 PR을 생성.
+     - PR 제목: `🚀 Production Release - YYYY-MM-DD`
+
+### 3. `cleanup-release-log.yml` (운영 레포지토리용)
+- **목표:** 운영 레포지토리의 `main` 브랜치에 배포 PR이 머지되면, 해당 릴리즈 로그를 아카이빙.
+- **트리거:** `main` 브랜치로 향하는 PR (head가 `release`인)이 `closed` 되고 `merged` 되었을 때.
+- **주요 로직:**
+  1. 이력 관리 레포지토리를 체크아웃.
+  2. `pending/소유자/레포/history.log` 파일을 `processed/타임스탬프_소유자_레포.log` 형식으로 이동 및 이름 변경.
+  3. 변경 사항을 커밋하고 이력 관리 레포지토리에 푸시.
