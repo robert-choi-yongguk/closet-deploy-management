@@ -79,7 +79,7 @@ jobs:
           REPO_FULL_NAME: ${{ matrix.repo_info.owner }}/${{ matrix.repo_info.repo }}
         run: |
           RELEASE_DATE=$(date +'%Y-%m-%d')
-          PR_TITLE="$RELEASE_DATE Release [Deployment]"
+          PR_TITLE="$RELEASE_DATE Release"
 
           if ! git ls-remote --exit-code --heads "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL_NAME}.git" release >/dev/null; then
             echo "::warning::'release' 브랜치가 '${REPO_FULL_NAME}' 레포지토리에 존재하지 않아 PR 생성을 건너뜁니다."
@@ -91,4 +91,5 @@ jobs:
             --base main \
             --head release \
             --title "$PR_TITLE" \
-            --body "${{ steps.generate_release_note.outputs.note }}"
+            --body "${{ steps.generate_release_note.outputs.note }}" \
+            --label "Deployment"
