@@ -1,0 +1,71 @@
+name: Notify Pending Releases to Slack
+
+on:
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    env:
+      SLACK_TEAM_MENTION: '@closet-backend' # 여기에 팀 슬랙 핸들(@team-name)을 입력하세요.
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Notification Message
+        id: generate_message
+        run: |
+          # Check for slack user map file
+          if [[ -f "config/slack-user-map.json" ]]; then
+            SLACK_USER_MAP=$(cat config/slack-user-map.json)
+          else
+            SLACK_USER_MAP="{}"
+          fi
+
+          # Find pending history logs
+          PENDING_LOGS=$(find pending -type f -name "history.log" 2>/dev/null)
+
+          if [[ -z "$PENDING_LOGS" ]]; then
+            MESSAGE="{"text": "✅ 릴리즈 대기중인 항목이 없습니다."}"
+          else
+            MESSAGE_TEXT="${{ env.SLACK_TEAM_MENTION }}\n\n*🚀 릴리즈 대기중인 항목 알림 🚀*\n"
+            
+            # Use a while loop to read each file path
+            echo "$PENDING_LOGS" | while IFS= read -r log_file; do
+              # Extract owner and repo from path: pending/owner/repo/history.log
+              OWNER=$(echo "$log_file" | cut -d'/' -f2)
+              REPO=$(echo "$log_file" | cut -d'/' -f3)
+
+              MESSAGE_TEXT+="\n>*$REPO* (by $OWNER)\n"
+
+              # Read each line from the history log
+              while IFS= read -r line || [[ -n "$line" ]]; do
+                PR_NUMBER=$(echo "$line" | cut -d',' -f1)
+                # remove @ from handle
+                GITHUB_HANDLE=$(echo "$line" | cut -d',' -f2 | sed 's/@//')
+
+                # Look for Slack ID in the map
+                SLACK_ID=$(echo "$SLACK_USER_MAP" | jq -r --arg handle "$GITHUB_HANDLE" '.[$handle] // empty')
+
+                if [[ -n "$SLACK_ID" ]]; then
+                  MENTION="<@$SLACK_ID>"
+                else
+                  MENTION="@$GITHUB_HANDLE"
+                fi
+                
+                MESSAGE_TEXT+="- PR #$PR_NUMBER ($MENTION)\n"
+              done < "$log_file"
+            done
+            
+            # Format for Slack API
+            # Using jq to safely escape the string for JSON
+            MESSAGE=$(jq -n --arg text "$MESSAGE_TEXT" '{text: $text}')
+          fi
+
+          echo "SLACK_MESSAGE=$MESSAGE" >> $GITHUB_ENV
+
+      - name: Send to Slack
+        if: success() && secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          echo "Sending notification to Slack..."
+          curl -X POST -H 'Content-type: application/json' --data "${{ env.SLACK_MESSAGE }}" "${{ secrets.SLACK_WEBHOOK_URL }}"
