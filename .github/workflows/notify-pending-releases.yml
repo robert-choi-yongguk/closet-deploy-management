@@ -36,13 +36,17 @@ jobs:
             while IFS= read -r log_file; do
               OWNER=$(echo "$log_file" | cut -d'/' -f2)
               REPO=$(echo "$log_file" | cut -d'/' -f3)
-              MESSAGE_TEXT+=$(printf "\n\n>%s* (by %s)" "$REPO" "$OWNER")
+              MESSAGE_TEXT+=$(printf "\n\n*Repository: 
+%s
+* (Owner: 
+%s
+)" "$REPO" "$OWNER")
 
               while IFS= read -r line || [[ -n "$line" ]]; do
                 PR_NUMBER=$(echo "$line" | cut -d',' -f1)
                 GITHUB_HANDLE=$(echo "$line" | cut -d',' -f2 | sed 's/@//')
                 PR_TITLE=$(echo "$line" | cut -d',' -f3-)
-                SLACK_ID=$(echo "$SLACK_USER_MAP" | jq -r --arg handle "$GITHUB_HANDLE" '.[$handle] // empty')
+                SLACK_ID=$(echo "$SLACK_USER_MAP" | jq -r --arg handle "$GITHUB_HANDLE" ".[$handle] // empty")
 
                 if [[ -n "$SLACK_ID" ]]; then
                   MENTION="<@$SLACK_ID>"
@@ -50,11 +54,12 @@ jobs:
                   MENTION="@$GITHUB_HANDLE"
                 fi
                 
-                MESSAGE_TEXT+=$(printf "\n- PR #%s: %s (%s)" "$PR_NUMBER" "$PR_TITLE" "$MENTION")
+                MESSAGE_TEXT+=$(printf "\n  • *PR #%s*: %s (%s)" "$PR_NUMBER" "$PR_TITLE" "$MENTION")
               done < "$log_file"
             done <<< "$PENDING_LOGS"
             
-            MESSAGE=$(jq -n --arg text "$MESSAGE_TEXT" '{text: $text}')
+            MESSAGE=$(jq -n --arg text "$MESSAGE_TEXT" 
+'{text: $text}')
           fi
 
           # Use heredoc to safely write multiline env var
