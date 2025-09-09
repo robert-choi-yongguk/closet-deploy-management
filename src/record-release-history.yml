@@ -30,7 +30,9 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           PR_AUTHOR=${{ github.event.pull_request.user.login }}
           
-          echo "$PR_NUMBER,@$PR_AUTHOR" >> $LOG_FILE
+          PR_TITLE=${{ github.event.pull_request.title }}
+
+          echo "$PR_NUMBER,@$PR_AUTHOR,$PR_TITLE" >> $LOG_FILE
           
           echo "로그가 추가되었습니다: $LOG_FILE"
           cat $LOG_FILE
