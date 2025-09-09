@@ -2,15 +2,24 @@
 
 [![GitHub Actions Workflow Status](https://github.com/robert-choi-yongguk/closet-deploy-management/actions/workflows/create-release-pr.yml/badge.svg)](https://github.com/robert-choi-yongguk/closet-deploy-management/actions/workflows/create-release-pr.yml)
 
-중앙화된 릴리즈 이력 관리 및 배포 자동화 시스템입니다. 여러 개의 **운영 레포지토리**에서 발생하는 릴리즈 내역을 **이력 관리 레포지토리**(현재 레포지토리)에서 통합 관리하며, 클릭 한 번으로 여러 레포지토리의 배포 PR을 동시에 생성할 수 있습니다.
+중앙화된 릴리즈 이력 관리 및 배포 자동화 시스템입니다. 여러 개의 **운영 레포지토리**에서 발생하는 릴리즈 내역을 **이력 관리 레포지토리**(현재 레포지토리)에서 통합 관리하며, 클릭 한 번으로 여러 레포지토리의 배포 PR을 동시에 생성하고, 릴리즈 대기 항목을 슬랙으로 받아볼 수 있습니다.
+
+## 🗺️ 시스템 다이어그램
+
+본 시스템의 아키텍처와 프로세스에 대한 시각적인 이해를 돕기 위해 다음 다이어그램을 참고할 수 있습니다.
+
+- **[전체 시스템 흐름도](./docs/system-overview.md)**
+- **[릴리즈 프로세스 시퀀스 다이어그램](./docs/release-process-sequence.md)**
+- **[슬랙 알림 워크플로우 순서도](./docs/slack-notification-flow.md)**
 
 ## 🏛️ 시스템 아키텍처
 
-이 시스템은 두 종류의 레포지토리와 세 개의 GitHub Actions 워크플로우로 구성됩니다.
+이 시스템은 두 종류의 레포지토리와 네 개의 GitHub Actions 워크플로우로 구성됩니다.
 
 - **이력 관리 레포지토리 (현재 레포지토리):**
   - 모든 릴리즈 이력 로그가 저장되는 중앙 허브입니다.
   - 통합 배포 PR 생성을 트리거하는 워크플로우(`create-release-pr.yml`)가 위치합니다.
+  - 릴리즈 대기중인 항목을 슬랙으로 알리는 워크플로우(`notify-pending-releases.yml`)가 위치합니다.
 
 - **운영 레포지토리 (N개):**
   - 실제 서비스 코드가 관리되는 대상 레포지토리입니다.
@@ -23,15 +32,20 @@
 
 **Step 2: 릴리즈 이력 자동 기록**
 - `record-release-history.yml` 워크플로우가 자동으로 실행됩니다.
-- 병합된 PR 번호와 작성자 정보가 이력 관리 레포지토리의 `pending/소유자/레포/history.log` 파일에 한 줄 추가됩니다.
+- 병합된 PR 정보(번호, 작성자, 제목)가 이력 관리 레포지토리의 `pending/소유자/레포/history.log` 파일에 `PR번호,@작성자,PR제목` 형식으로 한 줄 추가됩니다.
 
-**Step 3: 통합 배포 PR 생성 (이력 관리 레포지토리)**
+**Step 3: (Optional) 릴리즈 대기 항목 슬랙 알림**
+- 관리자가 이력 관리 레포지토리의 `Actions` 탭에서 `Notify Pending Releases to Slack` 워크플로우를 수동으로 실행합니다.
+- `pending/` 디렉토리에 있는 모든 릴리즈 대기 항목을 취합하여 지정된 슬랙 채널로 알림을 보냅니다.
+
+**Step 4: 통합 배포 PR 생성 (이력 관리 레포지토리)**
 - 관리자가 이력 관리 레포지토리의 `Actions` 탭에서 `통합 배포 PR 수동 생성` 워크플로우를 수동으로 실행합니다.
 - `create-release-pr.yml` 워크플로우가 실행되어 `pending` 디렉토리를 스캔합니다.
+- 로그에 기록된 PR 제목을 포함하여 릴리즈 노트를 자동으로 생성합니다.
 - 로그가 기록된 모든 운영 레포지토리에 대해, `release` -> `main`으로 향하는 배포 PR을 각각 자동으로 생성합니다.
 - 생성된 PR은 `YYYY-MM-DD Release` 형식의 제목과 `Deployment` 라벨을 갖게 됩니다.
 
-**Step 4: 배포 및 로그 아카이빙**
+**Step 5: 배포 및 로그 아카이빙**
 - 운영 레포지토리에서 생성된 배포 PR이 `main` 브랜치에 병합되어 실제 배포가 완료됩니다.
 - `cleanup-release-log.yml` 워크플로우가 자동으로 실행됩니다.
 - `pending`에 있던 로그 파일을 `processed` 디렉토리로 옮겨 영구 보관(아카이빙)합니다.
@@ -53,18 +67,37 @@
     - 생성한 토큰 값을 복사하여 `GH_RELEASE_PR_PAT` 라는 이름의 시크릿으로 등록합니다.
     - **중요:** 이 시크릿은 **이력 관리 레포지토리**와 **모든 운영 레포지토리** 양쪽에 모두 등록해야 합니다.
 
-### 2. 워크플로우 파일 배치
+### 2. 슬랙 알림 설정 (선택 사항)
+
+릴리즈 대기 항목 알림을 받으려면 다음을 설정해야 합니다.
+
+1.  **Slack Webhook URL 생성:**
+    - 슬랙 앱 설정에서 Incoming Webhook을 생성하고 Webhook URL을 복사합니다.
+2.  **시크릿 등록:**
+    - 복사한 Webhook URL을 `SLACK_WEBHOOK_URL` 라는 이름으로 **이력 관리 레포지토리**에 시크릿으로 등록합니다.
+3.  **슬랙 사용자 ID 매핑 (선택 사항):**
+    - `config/slack-user-map.json` 파일에서 GitHub 핸들과 Slack 멤버 ID를 매핑할 수 있습니다.
+    - 매핑된 사용자는 알림 메시지에서 자동으로 멘션됩니다.
+    ```json
+    {
+      "github-handle": "U0123ABCDE",
+      "another-user": "U5678FGHIJ"
+    }
+    ```
+
+### 3. 워크플로우 파일 배치
 
 각 레포지토리의 `.github/workflows/` 디렉토리 아래에 다음 파일들을 배치합니다.
 
 - **이력 관리 레포지토리 (`closet-deploy-management`):**
   - `create-release-pr.yml`
+  - `notify-pending-releases.yml`
 
 - **모든 운영 레포지토리:**
   - `record-release-history.yml`
   - `cleanup-release-log.yml`
 
-### 3. GitHub 라벨 설정
+### 4. GitHub 라벨 설정
 
 - **운영 레포지토리**에는 `Deployment` 라는 이름의 라벨이 있는 것이 좋습니다.
 - 라벨이 없어도 워크플로우가 PR 생성 시 자동으로 추가해주지만, 미리 생성해두면 색상 등을 원하는 대로 설정할 수 있어 관리에 용이합니다.
@@ -72,10 +105,11 @@
 ## ▶️ 사용법
 
 1. 각 운영 레포지토리에서 `release` 브랜치로 PR을 병합하며 릴리즈를 준비합니다.
-2. 배포 시점이 되면, **현재 레포지토리 (`closet-deploy-management`)**의 `Actions` 탭으로 이동합니다.
-3. 좌측 메뉴에서 `통합 배포 PR 수동 생성` 워크플로우를 선택합니다.
-4. `Run workflow` 버튼을 클릭하여 실행합니다.
-5. 잠시 후, 릴리즈 내역이 있던 모든 운영 레포지토리에 배포 PR이 생성된 것을 확인할 수 있습니다.
+2. (선택) 배포 전, **현재 레포지토리**의 `Actions` 탭에서 `Notify Pending Releases to Slack` 워크플로우를 실행하여 대기중인 항목을 팀에 공유할 수 있습니다.
+3. 배포 시점이 되면, **현재 레포지토리**의 `Actions` 탭으로 이동합니다.
+4. 좌측 메뉴에서 `통합 배포 PR 수동 생성` 워크플로우를 선택합니다.
+5. `Run workflow` 버튼을 클릭하여 실행합니다.
+6. 잠시 후, 릴리즈 내역이 있던 모든 운영 레포지토리에 배포 PR이 생성된 것을 확인할 수 있습니다.
 
 ## 📄 라이선스
 
