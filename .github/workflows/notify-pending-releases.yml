@@ -29,18 +29,22 @@ jobs:
             MESSAGE='{"text": "✅ 릴리즈 대기중인 항목이 없습니다."}'
           else
             # Use 
- for real newlines
+
+' for real newlines
             MESSAGE_TEXT="*🚀 릴리즈 대기중인 항목 알림 🚀*"
             if [[ -n "${{ env.SLACK_TEAM_MENTION }}" ]]; then
               MESSAGE_TEXT="${{ env.SLACK_TEAM_MENTION }}"
+'$
 
-"${MESSAGE_TEXT}"
+''$"${MESSAGE_TEXT}"
             fi
             
             echo "$PENDING_LOGS" | while IFS= read -r log_file; do
               OWNER=$(echo "$log_file" | cut -d'/' -f2)
               REPO=$(echo "$log_file" | cut -d'/' -f3)
-              MESSAGE_TEXT+=$ '\n\n>'$REPO'* (by '$OWNER')'
+              MESSAGE_TEXT+=$ ''$
+
+>''"$REPO"'* (by '"$OWNER"')'
 
               while IFS= read -r line || [[ -n "$line" ]]; do
                 PR_NUMBER=$(echo "$line" | cut -d',' -f1)
@@ -53,7 +57,8 @@ jobs:
                   MENTION="@$GITHUB_HANDLE"
                 fi
                 
-                MESSAGE_TEXT+=$ '\n- PR #'$PR_NUMBER' ('$MENTION')'
+                MESSAGE_TEXT+=$ ''$
+- PR #''"$PR_NUMBER"' (''"$MENTION"'')'
               done < "$log_file"
             done
             
