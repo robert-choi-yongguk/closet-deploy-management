@@ -65,7 +65,9 @@ jobs:
           echo "SLACK_MESSAGE=$MESSAGE" >> $GITHUB_ENV
 
       - name: Send to Slack
-        if: success() && secrets.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: success() && env.SLACK_WEBHOOK_URL != ''
         run: |
           echo "Sending notification to Slack..."
-          curl -X POST -H 'Content-type: application/json' --data "${{ env.SLACK_MESSAGE }}" "${{ secrets.SLACK_WEBHOOK_URL }}"
+          curl -X POST -H 'Content-type: application/json' --data "${{ env.SLACK_MESSAGE }}" "${{ env.SLACK_WEBHOOK_URL }}"
