@@ -5,8 +5,8 @@
 ```mermaid
 flowchart TD
     A[Start: 'notify-pending-releases.yml' 실행] --> B{pending/ 디렉토리에<br>history.log 파일이 있는가?};
-    B -- "Yes" --> C[MESSAGE_TEXT 변수 초기화<br>"🚀 릴리즈 대기중인 항목 알림 🚀"];
-    B -- "No" --> D[MESSAGE =<br>"✅ 릴리즈 대기중인 항목이 없습니다."];
+    B -- "Yes" --> C[MESSAGE_TEXT 변수 초기화<br>&quot;🚀 릴리즈 대기중인 항목 알림 🚀&quot;];
+    B -- "No" --> D[MESSAGE =<br>&quot;✅ 릴리즈 대기중인 항목이 없습니다.&quot;];
     D --> K[Slack으로 MESSAGE 전송];
 
     C --> E[log 파일 목록 순회 시작];
