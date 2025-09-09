@@ -17,7 +17,7 @@ flowchart TD
     I --> J[파싱된 PR 정보를<br>MESSAGE_TEXT에 추가];
     J --> G;
     G -- "파일 끝" --> E;
-    E -- "모든 로그 파일 완료" --> L[MESSAGE_TEXT를 JQ로<br>JSON 포맷(MESSAGE)으로 변환];
+    E -- "모든 로그 파일 완료" --> L[MESSAGE_TEXT를 JQ로<br>JSON 포맷&#40;MESSAGE&#41;으로 변환];
     L --> K;
     K --> Z[End];
 ```
