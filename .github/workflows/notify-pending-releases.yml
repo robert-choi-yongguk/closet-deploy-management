@@ -26,25 +26,25 @@ jobs:
           PENDING_LOGS=$(find pending -type f -name "history.log" 2>/dev/null)
 
           if [[ -z "$PENDING_LOGS" ]]; then
-            MESSAGE="{"text": "✅ 릴리즈 대기중인 항목이 없습니다."}"
+            MESSAGE='{"text": "✅ 릴리즈 대기중인 항목이 없습니다."}'
           else
-            MESSAGE_TEXT="${{ env.SLACK_TEAM_MENTION }}\n\n*🚀 릴리즈 대기중인 항목 알림 🚀*\n"
+            # Use 
+ for real newlines
+            MESSAGE_TEXT="*🚀 릴리즈 대기중인 항목 알림 🚀*"
+            if [[ -n "${{ env.SLACK_TEAM_MENTION }}" ]]; then
+              MESSAGE_TEXT="${{ env.SLACK_TEAM_MENTION }}"
+
+"${MESSAGE_TEXT}"
+            fi
             
-            # Use a while loop to read each file path
             echo "$PENDING_LOGS" | while IFS= read -r log_file; do
-              # Extract owner and repo from path: pending/owner/repo/history.log
               OWNER=$(echo "$log_file" | cut -d'/' -f2)
               REPO=$(echo "$log_file" | cut -d'/' -f3)
+              MESSAGE_TEXT+=$ '\n\n>'$REPO'* (by '$OWNER')'
 
-              MESSAGE_TEXT+="\n>*$REPO* (by $OWNER)\n"
-
-              # Read each line from the history log
               while IFS= read -r line || [[ -n "$line" ]]; do
                 PR_NUMBER=$(echo "$line" | cut -d',' -f1)
-                # remove @ from handle
                 GITHUB_HANDLE=$(echo "$line" | cut -d',' -f2 | sed 's/@//')
-
-                # Look for Slack ID in the map
                 SLACK_ID=$(echo "$SLACK_USER_MAP" | jq -r --arg handle "$GITHUB_HANDLE" '.[$handle] // empty')
 
                 if [[ -n "$SLACK_ID" ]]; then
@@ -53,16 +53,19 @@ jobs:
                   MENTION="@$GITHUB_HANDLE"
                 fi
                 
-                MESSAGE_TEXT+="- PR #$PR_NUMBER ($MENTION)\n"
+                MESSAGE_TEXT+=$ '\n- PR #'$PR_NUMBER' ('$MENTION')'
               done < "$log_file"
             done
             
-            # Format for Slack API
-            # Using jq to safely escape the string for JSON
             MESSAGE=$(jq -n --arg text "$MESSAGE_TEXT" '{text: $text}')
           fi
 
-          echo "SLACK_MESSAGE=$MESSAGE" >> $GITHUB_ENV
+          # Use heredoc to safely write multiline env var
+          {
+            echo 'SLACK_MESSAGE<<EOF'
+            echo "$MESSAGE"
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
 
       - name: Send to Slack
         env:
