@@ -33,7 +33,7 @@ jobs:
               MESSAGE_TEXT=$(printf "%s\n\n%s" "${{ env.SLACK_TEAM_MENTION }}" "$MESSAGE_TEXT")
             fi
             
-            echo "$PENDING_LOGS" | while IFS= read -r log_file; do
+            while IFS= read -r log_file; do
               OWNER=$(echo "$log_file" | cut -d'/' -f2)
               REPO=$(echo "$log_file" | cut -d'/' -f3)
               MESSAGE_TEXT+=$(printf "\n\n>%s* (by %s)" "$REPO" "$OWNER")
@@ -51,7 +51,7 @@ jobs:
                 
                 MESSAGE_TEXT+=$(printf "\n- PR #%s (%s)" "$PR_NUMBER" "$MENTION")
               done < "$log_file"
-            done
+            done <<< "$PENDING_LOGS"
             
             MESSAGE=$(jq -n --arg text "$MESSAGE_TEXT" '{text: $text}')
           fi
