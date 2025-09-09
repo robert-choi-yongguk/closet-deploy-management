@@ -41,6 +41,7 @@ jobs:
               while IFS= read -r line || [[ -n "$line" ]]; do
                 PR_NUMBER=$(echo "$line" | cut -d',' -f1)
                 GITHUB_HANDLE=$(echo "$line" | cut -d',' -f2 | sed 's/@//')
+                PR_TITLE=$(echo "$line" | cut -d',' -f3-)
                 SLACK_ID=$(echo "$SLACK_USER_MAP" | jq -r --arg handle "$GITHUB_HANDLE" '.[$handle] // empty')
 
                 if [[ -n "$SLACK_ID" ]]; then
@@ -49,7 +50,7 @@ jobs:
                   MENTION="@$GITHUB_HANDLE"
                 fi
                 
-                MESSAGE_TEXT+=$(printf "\n- PR #%s (%s)" "$PR_NUMBER" "$MENTION")
+                MESSAGE_TEXT+=$(printf "\n- PR #%s: %s (%s)" "$PR_NUMBER" "$PR_TITLE" "$MENTION")
               done < "$log_file"
             done <<< "$PENDING_LOGS"
             
