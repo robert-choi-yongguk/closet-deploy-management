@@ -36,17 +36,13 @@ jobs:
             while IFS= read -r log_file; do
               OWNER=$(echo "$log_file" | cut -d'/' -f2)
               REPO=$(echo "$log_file" | cut -d'/' -f3)
-              MESSAGE_TEXT+=$(printf "\n\n*Repository: 
-%s
-* (Owner: 
-%s
-)" "$REPO" "$OWNER")
+              MESSAGE_TEXT+=$(printf "\n\n*Repository: `"$REPO"`* (Owner: `"$OWNER"`)")
 
               while IFS= read -r line || [[ -n "$line" ]]; do
                 PR_NUMBER=$(echo "$line" | cut -d',' -f1)
                 GITHUB_HANDLE=$(echo "$line" | cut -d',' -f2 | sed 's/@//')
                 PR_TITLE=$(echo "$line" | cut -d',' -f3-)
-                SLACK_ID=$(echo "$SLACK_USER_MAP" | jq -r --arg handle "$GITHUB_HANDLE" ".[$handle] // empty")
+                SLACK_ID=$(echo "$SLACK_USER_MAP" | jq -r --arg handle "$GITHUB_HANDLE" ".[${handle}] // empty")
 
                 if [[ -n "$SLACK_ID" ]]; then
                   MENTION="<@$SLACK_ID>"
